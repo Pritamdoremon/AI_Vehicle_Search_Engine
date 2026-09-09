@@ -7,5 +7,8 @@ export const pool = new Pool({
   database: process.env.DB_NAME ?? 'vehicle_search',
   user: process.env.DB_USER ?? 'postgres',
   password: process.env.DB_PASSWORD,
-  connectionString: process.env.DATABASE_URL
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DB_SSL === 'true' || process.env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: false }
+    : undefined
 });

@@ -18,7 +18,7 @@ Users should be able to ask for vehicles in plain language, for example:
 - PostgreSQL connection pooling and parameterized SQL
 - Safe pagination and allowlisted sorting
 - Direct catalogue list and vehicle-by-id endpoints
-- Optional 60-row sample dataset for an existing table
+- 100 realistic sample vehicles in `database/seed.sql`
 - Plain HTML, Tailwind CDN, and JavaScript frontend served by Express
 - Local search-parser fallback when Gemini is unavailable
 - Focused API and repository tests
@@ -46,7 +46,7 @@ Create the database and table manually in pgAdmin4. Use [DATABASE_SETUP.md](DATA
 createdb vehicle_search
 ```
 
-The application never creates or migrates tables. After creating the table, optionally add sample rows with `npm run seed:existing-table`, or insert your own rows in pgAdmin4.
+The application never creates or migrates tables. After creating the table, add the 100 sample rows with `npm run seed:existing-table`, or insert your own rows in pgAdmin4.
 
 Start the API:
 
@@ -73,9 +73,10 @@ npm start
 | `DB_NAME` | PostgreSQL database name |
 | `DB_USER` | PostgreSQL username |
 | `DB_PASSWORD` | PostgreSQL password |
+| `DB_SSL` | Set to `true` for cloud PostgreSQL such as Supabase |
 | `DATABASE_URL` | Optional PostgreSQL connection string fallback |
 | `GEMINI_API_KEY` | Gemini API key |
-| `GEMINI_MODEL` | Gemini model name, defaults to `gemini-1.5-flash` |
+| `GEMINI_MODEL` | Gemini model name, defaults to `gemini-3.6-flash` |
 
 ## API
 
@@ -129,6 +130,14 @@ Returns one vehicle or `404` when it does not exist.
 ```bash
 npm test
 npm run build
+```
+
+## Seeding
+
+The seed runner executes `database/seed.sql` against the configured PostgreSQL database. It truncates the existing `vehicles` rows and inserts exactly 100 records; run it only when replacing the current catalogue is acceptable:
+
+```bash
+npm run seed:existing-table
 ```
 
 Tests cover search responses, invalid requests, vehicle lookup, LLM failure handling, pagination, and parameterized filter SQL. Database integration tests can be added with a dedicated test PostgreSQL database.

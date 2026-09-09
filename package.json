@@ -6,7 +6,7 @@
     "dev": "tsx watch backend/src/server.ts",
     "build": "tsc",
     "start": "node dist/src/server.js",
-    "seed:existing-table": "tsx backend/scripts/seed.ts",
+    "seed:existing-table": "tsx backend/scripts/runSqlSeed.ts",
     "test": "vitest run"
   },
   "dependencies": {

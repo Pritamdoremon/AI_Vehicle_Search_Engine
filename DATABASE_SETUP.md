@@ -73,4 +73,4 @@ After manually creating the table, you may run:
 npm run seed:existing-table
 ```
 
-This inserts 60 sample vehicles into the existing table and clears existing rows first. Do not run it on a database containing data you want to keep. You can skip it and insert your own vehicles through pgAdmin4.
+This inserts 100 realistic vehicles into the existing table and clears existing rows first. Do not run it on a database containing data you want to keep. You can skip it and insert your own vehicles through pgAdmin4.

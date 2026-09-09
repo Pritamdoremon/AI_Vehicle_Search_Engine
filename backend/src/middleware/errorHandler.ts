@@ -13,6 +13,10 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, _request, resp
     return;
   }
 
-  console.error(error);
+  if (error instanceof Error) {
+    console.error('Request failed:', error.message);
+  } else {
+    console.error('Request failed with an unknown error.');
+  }
   response.status(500).json({ error: 'An unexpected server error occurred.' });
 };
