@@ -1,41 +1,85 @@
-# AI Vehicle Search Engine
+# AI Vehicle Search Engine (Driveloop)
 
-A small Node.js and TypeScript backend for searching a used-vehicle catalogue with natural-language queries. The LLM converts the query into structured filters; the backend validates those filters and builds all SQL itself.
+A full-stack used-vehicle search app. Users ask in plain English; the backend turns that into structured filters, queries PostgreSQL safely, ranks results, and optionally asks Gemini to explain the top matches.
 
 ## Problem Statement
 
-Users should be able to ask for vehicles in plain language, for example:
+Users should be able to say things like:
 
 - `Show SUVs under 15 lakh`
 - `Diesel automatic cars below 80000 km`
 - `Automatic sedans in Bangalore`
-- `7 seater cars under 18 lakh`
+- `I need a family car under ₹15 lakh, automatic, good mileage`
+
+…and get ranked catalogue results with match scores, reasons, price context, and a short AI advisor summary.
 
 ## Features
 
-- Natural-language vehicle search with an LLM
-- Runtime validation of requests and LLM output with Zod
-- PostgreSQL connection pooling and parameterized SQL
-- Safe pagination and allowlisted sorting
-- Direct catalogue list and vehicle-by-id endpoints
-- 100 realistic sample vehicles in `database/seed.sql`
-- React (Vite) frontend with Tailwind CDN — run separately in development
-- Local search-parser fallback when Gemini is unavailable
-- Focused API and repository tests
+### Core search
+- Natural-language search via Gemini (with a local regex parser fallback)
+- Zod-validated filters → parameterized PostgreSQL SQL (LLM never writes SQL)
+- Pagination and allowlisted sorting
+- Follow-up search: merge new filters onto previous ones (e.g. “Only automatic”)
+- Filter chips on the UI to remove individual constraints
 
-## Tech Stack and Architecture
+### Result enrichment
+- **Match score** — weighted score from active filters (budget, body type, km, transmission, seats, city)
+- **Why this car** — simple rule-based reasons from filters + vehicle fields (no LLM)
+- **Price insight** — vs average price of similar vehicles (same body type + fuel)
+- Vehicle photos (`image_url`) with body-type placeholders when missing
 
-Node.js, TypeScript, Express, PostgreSQL, Gemini API, Zod, Vitest, React, and Vite.
+### AI Vehicle Advisor
+- After search, top 3–5 ranked vehicles are sent to Gemini **once**
+- Gemini only explains already-ranked results; it does not query the database
+- If Gemini fails, normal search results still work
+- Optional `ai_advisor_history` rows for the logged-in user
 
-`Route -> Controller -> Service -> Repository -> PostgreSQL`
+### Auth & personal garage
+- JWT register / login (register then login; no auto-login after register)
+- Guests see a fixed landing page; the full dashboard unlocks after login
+- Favourites, search history, saved searches, saved comparisons
+- Shareable comparison links (`/?ids=1,2,3`)
 
-LLM parsing is kept in its own service and never has access to database query construction.
+### Compare & finance
+- Compare up to 3 vehicles side by side
+- EMI calculator on vehicle details / compare
+- Copy share link for a comparison
 
-Backend and frontend are **separate npm packages**. Run them in two terminals during development.
+## Tech Stack
+
+| Layer | Stack |
+| --- | --- |
+| Backend | Node.js, TypeScript, Express, Zod, JWT, bcrypt, `pg` |
+| AI | Gemini API (`GEMINI_API_KEY`) + local filter fallback |
+| Database | PostgreSQL |
+| Frontend | React (Vite), Tailwind CDN |
+| Tests | Vitest + Supertest |
+
+### Architecture
+
+```
+Route → Controller → Service → Repository → PostgreSQL
+                ↘ Gemini (filter parse / advisor only)
+```
+
+- **Database** owns vehicle facts  
+- **Backend** owns search, filtering, match score, ranking  
+- **Gemini** explains ranked results or parses NL → filters  
+- **React** displays results and advisor text  
+
+## Project layout
+
+```
+backend/src/          Express API, services, repositories
+backend/scripts/      Seed + migration helpers
+frontend/src/         React app (App.jsx, VehicleCard, EMI, …)
+sql/                  pgAdmin-friendly CREATE TABLE scripts
+database/seed.sql     100 sample vehicles
+```
 
 ## Setup
 
-Prerequisites: Node.js 20+ and PostgreSQL 14+. A Gemini API key enables the hosted natural-language parser, but is optional because a local parser is included.
+**Prerequisites:** Node.js 20+, PostgreSQL 14+.
 
 ```bash
 # Backend (repo root)
@@ -48,107 +92,100 @@ npm install
 cd ..
 ```
 
-Create the database and table manually in pgAdmin4. Use [DATABASE_SETUP.md](DATABASE_SETUP.md) for the exact column types, constraints, and indexes.
+### Database
+
+1. Create a database (example: `vehicle_search` or the name in your `.env`).
+2. Run SQL from:
+   - [`sql/pgadmin4-vehicles.sql`](sql/pgadmin4-vehicles.sql) — vehicles table
+   - [`sql/pgadmin4-user-tables.sql`](sql/pgadmin4-user-tables.sql) — users, favourites, history, saved searches/comparisons, AI advisor history
+3. Optional: [`DATABASE_SETUP.md`](DATABASE_SETUP.md) for detailed column notes.
+4. Seed sample vehicles:
 
 ```bash
-createdb vehicle_search
+npm run seed:existing-table
 ```
 
-The application never creates or migrates tables. After creating the table, add the 100 sample rows with `npm run seed:existing-table`, or insert your own rows in pgAdmin4.
+Optional photo / saved-search migration helper:
 
-### Run separately (recommended for local work)
+```bash
+npx tsx backend/scripts/migratePhotosAndSavedSearches.ts
+```
+
+### Environment variables
+
+| Variable | Description |
+| --- | --- |
+| `PORT` | API port (default `5000`) |
+| `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | PostgreSQL |
+| `DB_SSL` | `true` for cloud Postgres (e.g. Supabase) |
+| `DATABASE_URL` | Optional connection-string fallback |
+| `GEMINI_API_KEY` | Gemini key (optional; local parser used if missing) |
+| `GEMINI_MODEL` | Default `gemini-3.6-flash` |
+| `JWT_SECRET` | **Required** for auth, favourites, history, advisor history |
+
+## Run locally
 
 | App | Port | URL |
 | --- | --- | --- |
-| Frontend (React) | **3000** | http://localhost:3000 |
-| Backend (API) | **5000** | http://localhost:5000 |
+| Frontend | **3000** | http://localhost:3000 |
+| Backend | **5000** | http://localhost:5000 |
 
-**Terminal 1 — backend (port 5000):**
+**Terminal 1 — API:**
 
 ```bash
 npm run dev
 ```
 
-**Terminal 2 — frontend (port 3000):**
+**Terminal 2 — React:**
 
 ```bash
 cd frontend
 npm start
 ```
 
-Open `http://localhost:3000`. Vite proxies `/api` requests to the backend on port 5000.
+Vite proxies `/api` to port `5000`.
 
 ### Production (one process)
-
-Render / production still builds the React app and lets Express serve `frontend/dist`:
 
 ```bash
 npm run build
 npm start
 ```
 
-Then open `http://localhost:5000`.
-## Environment Variables
+Express serves `frontend/dist` and the API on `http://localhost:5000`.
 
-| Variable | Description |
-| --- | --- |
-| `PORT` | HTTP port, defaults to `5000` |
-| `DB_HOST` | PostgreSQL host |
-| `DB_PORT` | PostgreSQL port |
-| `DB_NAME` | PostgreSQL database name |
-| `DB_USER` | PostgreSQL username |
-| `DB_PASSWORD` | PostgreSQL password |
-| `DB_SSL` | Set to `true` for cloud PostgreSQL such as Supabase |
-| `DATABASE_URL` | Optional PostgreSQL connection string fallback |
-| `GEMINI_API_KEY` | Gemini API key |
-| `GEMINI_MODEL` | Gemini model name, defaults to `gemini-3.6-flash` |
+## Main APIs
 
-## API
+### Auth
+- `POST /api/auth/register` — create account (then login)
+- `POST /api/auth/login` — returns JWT + user
 
-### `POST /api/vehicles/search`
+### Vehicles
+- `POST /api/vehicles/search` — NL search  
+  Body may include `previousFilters` for follow-up merges.  
+  Vehicles may include `matchScore`, `similarAveragePrice`, `priceDelta`.
+- `GET /api/vehicles` — catalogue list (pagination / sort)
+- `GET /api/vehicles/:id` — one vehicle (+ price insight fields)
 
-Request:
+### AI Vehicle Advisor
+- `POST /api/vehicle-advisor` (JWT)  
+  Body: `{ query?, filters, vehicles }` (max 5 vehicles)  
+  Response: `{ advice }` or `{ advice: null, error }`
 
-```json
-{
-  "query": "diesel automatic SUVs under 15 lakh in Bangalore",
-  "page": 1,
-  "limit": 10,
-  "sortBy": "price",
-  "sortOrder": "asc"
-}
-```
+### User (JWT)
+- Favourites, search history, saved searches, saved comparisons under `/api/user/...`
 
-Response shape:
+## Example search flow
 
-```json
-{
-  "vehicles": [],
-  "total": 0,
-  "filters": {
-    "bodyType": "suv",
-    "fuelType": "diesel",
-    "transmission": "automatic",
-    "maxPrice": 1500000,
-    "city": "Bangalore"
-  },
-  "page": 1,
-  "limit": 10,
-  "totalPages": 0
-}
-```
+1. User (logged in) searches: `SUV under ₹15 lakh in Bangalore`
+2. Gemini / local parser → filters `{ bodyType, maxPrice, city }`
+3. PostgreSQL returns matching vehicles
+4. Backend attaches match scores and similar-price averages
+5. UI shows cards (Why this car, price insight) + chips
+6. Frontend calls `/api/vehicle-advisor` with top 3–5 cars
+7. Gemini returns a short explanation for the dashboard panel
 
-Prices are stored in INR. Supported filter values are defined in `backend/src/types/vehicle.ts`. Invalid or unclear queries return `400`; unavailable or malformed LLM responses return `502` or `503`.
-
-When Gemini is unavailable or has no credits, the backend automatically uses a small local parser for common filters. This keeps the assignment demo usable for free; Gemini is preferred when available.
-
-### `GET /api/vehicles`
-
-Returns all vehicles with pagination. Query parameters: `page`, `limit`, `sortBy`, and `sortOrder`.
-
-### `GET /api/vehicles/:id`
-
-Returns one vehicle or `404` when it does not exist.
+Follow-up: `Only automatic` → merge `{ transmission: "automatic" }` with previous filters.
 
 ## Testing
 
@@ -157,20 +194,22 @@ npm test
 npm run build
 ```
 
-## Seeding
+Tests cover search responses, filter merge / match enrichment, invalid requests, vehicle lookup, LLM failure mapping, and parameterized SQL.
 
-The seed runner executes `database/seed.sql` against the configured PostgreSQL database. It truncates the existing `vehicles` rows and inserts exactly 100 records; run it only when replacing the current catalogue is acceptable:
+## Security
 
-```bash
-npm run seed:existing-table
-```
+- LLM never generates SQL; filters are Zod-validated
+- Query values are parameterized; sort columns are allowlisted
+- Gemini API key stays on the backend (never sent to React)
+- JWT protects user data and the advisor endpoint
+- Advisor/history failures do not break vehicle search
 
-Tests cover search responses, invalid requests, vehicle lookup, LLM failure handling, pagination, and parameterized filter SQL. Database integration tests can be added with a dedicated test PostgreSQL database.
+## Limitations
 
-## Security Considerations
+- Seed data is synthetic; city/make matching is exact
+- Advisor quality depends on Gemini availability/credits
+- No rate limiting or advanced observability yet
 
-The LLM never generates SQL. It returns JSON filters that are validated against strict TypeScript/Zod structures. SQL values use PostgreSQL parameters, and sort columns are selected from a fixed allowlist. Secrets are read from environment variables and are not returned in errors.
+## License
 
-## Limitations and Future Improvements
-
-The seed data is synthetic, city and make matching are exact, and the API currently has no authentication or rate limiting. A production version would add authentication, request limits, observability, a managed secrets solution, richer catalogue data, and a fallback parser for common query patterns when the LLM is unavailable.
+Private student / portfolio project.
