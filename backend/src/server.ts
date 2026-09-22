@@ -1,8 +1,9 @@
 import 'dotenv/config';
 import { createApp } from './app';
 
-const port = Number(process.env.PORT ?? 3000);
+// Backend API port (frontend runs on a different port: 3000)
+const port = Number(process.env.PORT ?? 5000);
 
 createApp().listen(port, () => {
-  console.log(`Vehicle search API listening on port ${port}`);
+  console.log(`Backend API listening on http://localhost:${port}`);
 });

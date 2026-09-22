@@ -19,25 +19,33 @@ Users should be able to ask for vehicles in plain language, for example:
 - Safe pagination and allowlisted sorting
 - Direct catalogue list and vehicle-by-id endpoints
 - 100 realistic sample vehicles in `database/seed.sql`
-- Plain HTML, Tailwind CDN, and JavaScript frontend served by Express
+- React (Vite) frontend with Tailwind CDN — run separately in development
 - Local search-parser fallback when Gemini is unavailable
 - Focused API and repository tests
 
 ## Tech Stack and Architecture
 
-Node.js, TypeScript, Express, PostgreSQL, Gemini API, Zod, and Vitest.
+Node.js, TypeScript, Express, PostgreSQL, Gemini API, Zod, Vitest, React, and Vite.
 
 `Route -> Controller -> Service -> Repository -> PostgreSQL`
 
 LLM parsing is kept in its own service and never has access to database query construction.
+
+Backend and frontend are **separate npm packages**. Run them in two terminals during development.
 
 ## Setup
 
 Prerequisites: Node.js 20+ and PostgreSQL 14+. A Gemini API key enables the hosted natural-language parser, but is optional because a local parser is included.
 
 ```bash
+# Backend (repo root)
 npm install
 copy .env.example .env
+
+# Frontend
+cd frontend
+npm install
+cd ..
 ```
 
 Create the database and table manually in pgAdmin4. Use [DATABASE_SETUP.md](DATABASE_SETUP.md) for the exact column types, constraints, and indexes.
@@ -48,21 +56,38 @@ createdb vehicle_search
 
 The application never creates or migrates tables. After creating the table, add the 100 sample rows with `npm run seed:existing-table`, or insert your own rows in pgAdmin4.
 
-Start the API:
+### Run separately (recommended for local work)
+
+| App | Port | URL |
+| --- | --- | --- |
+| Frontend (React) | **3000** | http://localhost:3000 |
+| Backend (API) | **5000** | http://localhost:5000 |
+
+**Terminal 1 — backend (port 5000):**
 
 ```bash
 npm run dev
 ```
 
-Open `http://localhost:5000` in your browser. The frontend is served from `frontend/` and calls the same-origin vehicle APIs. No separate frontend build step is required.
+**Terminal 2 — frontend (port 3000):**
 
-Build and start production JavaScript:
+```bash
+cd frontend
+npm start
+```
+
+Open `http://localhost:3000`. Vite proxies `/api` requests to the backend on port 5000.
+
+### Production (one process)
+
+Render / production still builds the React app and lets Express serve `frontend/dist`:
 
 ```bash
 npm run build
 npm start
 ```
 
+Then open `http://localhost:5000`.
 ## Environment Variables
 
 | Variable | Description |

@@ -1,314 +1,34 @@
 <!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Driveloop | AI Vehicle Search</title>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <title>Driveloop | AI Vehicle Search</title>
-
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            ink: '#17211f',
-            paper: '#f5f3ed',
-            mint: '#b9e4d0',
-            coral: '#ec765d',
-            pine: '#23443b'
-          },
-
-          fontFamily: {
-            display: ['Georgia', 'serif'],
-            sans: ['Trebuchet MS', 'sans-serif']
+    <!-- Same Tailwind setup as the old HTML frontend -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              ink: '#17211f',
+              paper: '#f5f3ed',
+              mint: '#b9e4d0',
+              coral: '#ec765d',
+              pine: '#23443b'
+            },
+            fontFamily: {
+              display: ['Georgia', 'serif'],
+              sans: ['Trebuchet MS', 'sans-serif']
+            }
           }
         }
-      }
-    };
-  </script>
-</head>
-
-
-<body class="min-h-screen bg-paper text-ink font-sans">
-
-  <header class="border-b border-ink/10">
-    <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-10">
-
-      <a href="/" class="flex items-center gap-3">
-        <span class="grid h-10 w-10 place-items-center rounded-full bg-pine text-lg font-bold text-mint">
-          D
-        </span>
-
-        <span class="font-display text-2xl">
-          driveloop
-        </span>
-      </a>
-
-      <span class="hidden text-xs font-bold uppercase tracking-[0.22em] text-ink/50 sm:block">
-        AI vehicle search
-      </span>
-
-    </div>
-  </header>
-
-
-  <main class="mx-auto max-w-7xl px-5 pb-16 pt-10 lg:px-10 lg:pt-16">
-
-    <section class="grid items-end gap-10 lg:grid-cols-[1.1fr_0.9fr]">
-
-      <div>
-        <p class="mb-4 text-xs font-bold uppercase tracking-[0.25em] text-coral">
-          Find your next drive
-        </p>
-
-        <h1 class="max-w-3xl font-display text-5xl leading-[0.98] sm:text-7xl">
-          Tell us what you want to drive.
-        </h1>
-
-        <p class="mt-6 max-w-xl text-lg leading-8 text-ink/65">
-          Search the catalogue like you would ask a friend.
-          Budget, city, fuel, seats, safety, and more.
-        </p>
-      </div>
-
-
-      <div class="rounded-[2rem] bg-pine p-6 text-paper shadow-xl shadow-pine/10 sm:p-8">
-
-        <div class="mb-5 flex items-center justify-between">
-
-          <span class="text-sm font-bold uppercase tracking-[0.18em] text-mint">
-            Ask driveloop
-          </span>
-
-          <span class="h-2 w-2 rounded-full bg-mint shadow-[0_0_0_5px_rgba(185,228,208,0.15)]">
-          </span>
-
-        </div>
-
-
-        <form id="search-form">
-
-          <label
-            for="search-input"
-            class="sr-only"
-          >
-            Describe the vehicle you want
-          </label>
-
-          <textarea
-            id="search-input"
-            rows="3"
-            maxlength="500"
-            placeholder="e.g. Automatic SUVs under 15 lakh in Bangalore"
-            class="w-full resize-none rounded-2xl border border-white/15 bg-white/10 p-4 text-base text-white outline-none placeholder:text-white/45 focus:border-mint"
-          ></textarea>
-
-
-          <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-
-            <span class="text-xs text-white/45">
-              Natural language, plain and simple
-            </span>
-
-            <button
-              class="rounded-full bg-mint px-6 py-3 text-sm font-bold text-pine transition hover:bg-white"
-              type="submit"
-            >
-              Search vehicles
-              <span aria-hidden="true">→</span>
-            </button>
-
-          </div>
-
-        </form>
-
-      </div>
-
-    </section>
-
-
-    <section class="mt-12 border-y border-ink/10 py-5">
-
-      <div class="flex flex-wrap items-center gap-3">
-
-        <span class="mr-2 text-xs font-bold uppercase tracking-[0.18em] text-ink/45">
-          Try
-        </span>
-
-        <button
-          class="example-query rounded-full border border-ink/15 px-4 py-2 text-sm hover:border-coral hover:text-coral"
-          data-query="Show SUVs under 15 lakh"
-        >
-          SUVs under ₹15L
-        </button>
-
-        <button
-          class="example-query rounded-full border border-ink/15 px-4 py-2 text-sm hover:border-coral hover:text-coral"
-          data-query="Electric cars under 20 lakh"
-        >
-          Electric under ₹20L
-        </button>
-
-        <button
-          class="example-query rounded-full border border-ink/15 px-4 py-2 text-sm hover:border-coral hover:text-coral"
-          data-query="7 seater cars under 18 lakh"
-        >
-          7 seaters under ₹18L
-        </button>
-
-        <button
-          class="example-query rounded-full border border-ink/15 px-4 py-2 text-sm hover:border-coral hover:text-coral"
-          data-query="Automatic sedans in Bangalore"
-        >
-          Automatic in Bangalore
-        </button>
-
-      </div>
-
-    </section>
-
-
-    <section class="mt-10">
-
-      <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-
-        <div>
-
-          <p class="text-sm font-bold uppercase tracking-[0.18em] text-coral">
-            Catalogue
-          </p>
-
-          <h2
-            id="result-title"
-            class="mt-2 font-display text-4xl"
-          >
-            Explore vehicles
-          </h2>
-
-        </div>
-
-
-        <div class="flex items-center gap-2">
-
-          <label
-            for="sort-select"
-            class="text-sm text-ink/55"
-          >
-            Sort
-          </label>
-
-          <select
-            id="sort-select"
-            class="rounded-full border border-ink/15 bg-transparent px-4 py-2 text-sm outline-none focus:border-coral"
-          >
-            <option value="createdAt:desc">
-              Newest
-            </option>
-
-            <option value="price:asc">
-              Price: low to high
-            </option>
-
-            <option value="price:desc">
-              Price: high to low
-            </option>
-
-            <option value="year:desc">
-              Latest year
-            </option>
-
-            <option value="kmDriven:asc">
-              Lowest kilometres
-            </option>
-
-            <option value="safetyRating:desc">
-              Safety rating
-            </option>
-          </select>
-
-        </div>
-
-      </div>
-
-
-      <div
-        id="status"
-        class="hidden rounded-2xl border p-8 text-center"
-      ></div>
-
-
-      <div
-        id="vehicle-grid"
-        class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
-      ></div>
-
-
-      <!-- Comparison section -->
-      <div
-        id="compare-section"
-        class="mt-12 hidden"
-      >
-
-        <div class="mb-5 flex items-end justify-between gap-4">
-
-          <div>
-
-            <p class="text-sm font-bold uppercase tracking-[0.18em] text-coral">
-              Vehicle comparison
-            </p>
-
-            <h2 class="mt-2 font-display text-4xl">
-              Compare your choices
-            </h2>
-
-          </div>
-
-          <span
-            id="compare-count"
-            class="hidden rounded-full bg-mint px-4 py-2 text-sm font-bold text-pine"
-          >
-            0/3 selected
-          </span>
-
-        </div>
-
-
-        <div
-          id="compare-table"
-          class="overflow-hidden rounded-3xl border border-ink/10 bg-white/60"
-        ></div>
-
-      </div>
-
-
-      <div
-        id="pagination"
-        class="mt-8 flex items-center justify-between"
-      ></div>
-
-    </section>
-
-  </main>
-
-
-  <dialog
-    id="vehicle-dialog"
-    class="w-[min(92vw,620px)] rounded-3xl border-0 bg-paper p-0 text-ink shadow-2xl backdrop:bg-pine/50"
-  >
-
-    <div
-      id="vehicle-detail"
-      class="p-7"
-    ></div>
-
-  </dialog>
-
-
-  <script src="/app.js"></script>
-
-</body>
-
+      };
+    </script>
+  </head>
+  <body class="min-h-screen bg-paper text-ink font-sans">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
