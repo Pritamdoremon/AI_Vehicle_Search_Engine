@@ -2,6 +2,7 @@ import VehicleCard from './VehicleCard.jsx';
 
 function VehicleList({
   vehicles,
+  filters,
   compareVehicles,
   favouriteIds,
   onView,
@@ -14,6 +15,7 @@ function VehicleList({
         <VehicleCard
           key={vehicle.id}
           vehicle={vehicle}
+          filters={filters}
           isSelected={compareVehicles.some((item) => item.id === vehicle.id)}
           isFavourite={favouriteIds.includes(vehicle.id)}
           onView={onView}

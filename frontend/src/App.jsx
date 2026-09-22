@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import SearchBar from './components/SearchBar.jsx';
 import VehicleList from './components/VehicleList.jsx';
-import { money } from './components/VehicleCard.jsx';
+import EmiCalculator, { calculateEMI } from './components/EmiCalculator.jsx';
+import {
+  money,
+  getVehicleImage,
+  getPlaceholderImage,
+  getPriceInsightText,
+  formatLakh
+} from './components/VehicleCard.jsx';
 
 const EXAMPLE_QUERIES = [
   { label: 'SUVs under ₹15L', query: 'Show SUVs under 15 lakh' },
@@ -25,6 +32,176 @@ const COMPARE_ROWS = [
   ['City', (v) => v.city],
   ['Ownership', (v) => `${v.ownership} owner(s)`]
 ];
+
+function formatLakhLabel(amount) {
+  const lakhs = Number(amount) / 100000;
+  if (Number.isInteger(lakhs)) {
+    return `₹${lakhs}L`;
+  }
+  return `₹${lakhs.toFixed(1)}L`;
+}
+
+// Turn the API filters object into simple chip labels for the UI.
+function filtersToChips(filters) {
+  if (!filters || typeof filters !== 'object') {
+    return [];
+  }
+
+  const chips = [];
+
+  if (filters.make) chips.push({ key: 'make', label: filters.make });
+  if (filters.model) chips.push({ key: 'model', label: filters.model });
+  if (filters.bodyType) chips.push({ key: 'bodyType', label: filters.bodyType.toUpperCase() });
+  if (filters.fuelType) chips.push({ key: 'fuelType', label: filters.fuelType });
+  if (filters.transmission) chips.push({ key: 'transmission', label: filters.transmission });
+  if (filters.minPrice !== undefined) chips.push({ key: 'minPrice', label: `≥ ${formatLakhLabel(filters.minPrice)}` });
+  if (filters.maxPrice !== undefined) chips.push({ key: 'maxPrice', label: `≤ ${formatLakhLabel(filters.maxPrice)}` });
+  if (filters.minKmDriven !== undefined) chips.push({ key: 'minKmDriven', label: `≥ ${Number(filters.minKmDriven).toLocaleString('en-IN')} km` });
+  if (filters.maxKmDriven !== undefined) chips.push({ key: 'maxKmDriven', label: `≤ ${Number(filters.maxKmDriven).toLocaleString('en-IN')} km` });
+  if (filters.minSafetyRating !== undefined) chips.push({ key: 'minSafetyRating', label: `Safety ≥ ${filters.minSafetyRating}` });
+  if (filters.seatingCapacity !== undefined) chips.push({ key: 'seatingCapacity', label: `${filters.seatingCapacity} seats` });
+  if (filters.city) chips.push({ key: 'city', label: filters.city });
+  if (filters.minYear !== undefined) chips.push({ key: 'minYear', label: `From ${filters.minYear}` });
+  if (filters.maxYear !== undefined) chips.push({ key: 'maxYear', label: `Until ${filters.maxYear}` });
+  if (filters.ownership !== undefined) chips.push({ key: 'ownership', label: `${filters.ownership} owner` });
+
+  return chips;
+}
+
+// Build a plain-language query from remaining filters so we can reuse POST /api/vehicles/search.
+function buildQueryFromFilters(filters) {
+  const parts = [];
+
+  if (filters.make) parts.push(filters.make);
+  if (filters.model) parts.push(filters.model);
+  if (filters.bodyType) parts.push(filters.bodyType);
+  if (filters.fuelType) parts.push(filters.fuelType);
+  if (filters.transmission) parts.push(filters.transmission);
+  if (filters.seatingCapacity) parts.push(`${filters.seatingCapacity} seater`);
+  if (filters.maxPrice !== undefined) parts.push(`under ${Number(filters.maxPrice) / 100000} lakh`);
+  if (filters.minPrice !== undefined) parts.push(`above ${Number(filters.minPrice) / 100000} lakh`);
+  if (filters.maxKmDriven !== undefined) parts.push(`below ${filters.maxKmDriven} km`);
+  if (filters.minKmDriven !== undefined) parts.push(`above ${filters.minKmDriven} km`);
+  if (filters.minSafetyRating !== undefined) parts.push(`safety ${filters.minSafetyRating}`);
+  if (filters.minYear !== undefined) parts.push(`from ${filters.minYear}`);
+  if (filters.maxYear !== undefined) parts.push(`until ${filters.maxYear}`);
+  if (filters.ownership !== undefined) parts.push(`${filters.ownership} owner`);
+  if (filters.city) parts.push(`in ${filters.city}`);
+
+  return parts.join(' ').trim();
+}
+
+function GuestLanding({ onLogin, onRegister, hasSharedLink }) {
+  return (
+    <main className="mx-auto max-w-7xl px-5 pb-16 pt-10 lg:px-10 lg:pt-16">
+      <section className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
+        <div>
+          <p className="mb-4 text-xs font-bold uppercase tracking-[0.25em] text-coral">
+            AI vehicle search
+          </p>
+          <h1 className="max-w-3xl font-display text-5xl leading-[0.98] sm:text-7xl">
+            driveloop
+          </h1>
+          <p className="mt-6 max-w-xl text-lg leading-8 text-ink/65">
+            Search used cars in plain English, get an AI Vehicle Advisor summary
+            on your top matches, compare options, and estimate EMI — after you login.
+          </p>
+
+          <div className="mt-8 flex flex-wrap gap-3">
+            <button
+              type="button"
+              className="rounded-full bg-pine px-6 py-3 text-sm font-bold text-paper hover:bg-ink"
+              onClick={onLogin}
+            >
+              Login to open dashboard
+            </button>
+            <button
+              type="button"
+              className="rounded-full border border-ink/15 px-6 py-3 text-sm font-bold hover:border-coral hover:text-coral"
+              onClick={onRegister}
+            >
+              Create account
+            </button>
+          </div>
+
+          {hasSharedLink && (
+            <p className="mt-5 rounded-2xl border border-mint/40 bg-mint/20 px-4 py-3 text-sm text-pine">
+              You opened a shared comparison link. Login to view those vehicles.
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-[2rem] bg-pine p-7 text-paper shadow-xl shadow-pine/10 sm:p-9">
+          <p className="text-sm font-bold uppercase tracking-[0.18em] text-mint">
+            How it works
+          </p>
+          <ol className="mt-6 space-y-5 text-base leading-7 text-paper/90">
+            <li>
+              <strong className="text-mint">1. Ask in plain language</strong>
+              <br />
+              Example: “SUVs under 15 lakh in Bangalore”
+            </li>
+            <li>
+              <strong className="text-mint">2. Review matches + AI Advisor</strong>
+              <br />
+              See scored results, then a short Gemini explanation of your top cars
+            </li>
+            <li>
+              <strong className="text-mint">3. Compare &amp; decide</strong>
+              <br />
+              Side-by-side specs, EMI estimate, favourites, and share links
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section className="mt-16 grid gap-5 sm:grid-cols-3">
+        {[
+          {
+            title: 'Natural language search',
+            text: 'The AI turns your sentence into safe filters. SQL is built by the app, not the model.'
+          },
+          {
+            title: 'AI Vehicle Advisor',
+            text: 'After results load, Gemini explains your top 3–5 matches using only ranked vehicle data from our backend.'
+          },
+          {
+            title: 'Compare with EMI',
+            text: 'Pick up to 3 cars, estimate monthly EMI, and share a comparison link with friends.'
+          }
+        ].map((item) => (
+          <article
+            key={item.title}
+            className="rounded-3xl border border-ink/10 bg-white/55 p-6"
+          >
+            <h2 className="font-display text-2xl">{item.title}</h2>
+            <p className="mt-3 text-sm leading-7 text-ink/60">{item.text}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="mt-12 rounded-3xl border border-ink/10 bg-white/50 p-6 text-center sm:p-8">
+        <p className="text-sm font-bold uppercase tracking-[0.18em] text-coral">
+          Demo access
+        </p>
+        <h2 className="mt-3 font-display text-3xl">
+          Login to search the live catalogue
+        </h2>
+        <p className="mx-auto mt-3 max-w-2xl text-ink/60">
+          Guests only see this intro. The full dashboard — search, AI Vehicle Advisor,
+          match scores, compare, and saved searches — unlocks after login.
+        </p>
+        <button
+          type="button"
+          className="mt-6 rounded-full bg-coral px-6 py-3 text-sm font-bold text-white hover:bg-ink"
+          onClick={onLogin}
+        >
+          Go to login
+        </button>
+      </section>
+    </main>
+  );
+}
 
 function getToken() {
   return localStorage.getItem('authToken');
@@ -60,7 +237,8 @@ async function apiFetch(url, options = {}) {
   }
 
   if (!response.ok) {
-    const error = new Error(data.error || 'Request failed.');
+    const details = Array.isArray(data.details) ? data.details.filter(Boolean) : [];
+    const error = new Error(details.length ? details.join(' ') : (data.error || 'Request failed.'));
     error.status = response.status;
     throw error;
   }
@@ -78,6 +256,12 @@ function App() {
   const [vehicles, setVehicles] = useState([]);
   const [totalPages, setTotalPages] = useState(0);
   const [status, setStatus] = useState({ message: '', type: 'info' });
+  // Active search filters from the API (used for chips + "Why this car")
+  const [filters, setFilters] = useState({});
+
+  // AI Vehicle Advisor (separate from search — failure must not break results)
+  const [advisorText, setAdvisorText] = useState('');
+  const [advisorStatus, setAdvisorStatus] = useState('idle'); // idle | loading | ready | error
 
   // Compare / favourites
   const [compareVehicles, setCompareVehicles] = useState([]);
@@ -87,9 +271,6 @@ function App() {
   const [user, setUser] = useState(getStoredUser());
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState('login');
-  const [authName, setAuthName] = useState('');
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
   const [authMessage, setAuthMessage] = useState('');
 
   // Detail dialog
@@ -117,19 +298,119 @@ function App() {
     setStatus({ message: '', type: 'info' });
   }
 
-  // Load catalogue / search results whenever page, sort, or query changes
+  // Load catalogue only when logged in (dashboard)
   useEffect(() => {
+    if (!isLoggedIn) {
+      return;
+    }
     loadVehicles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, sortBy, sortOrder, query]);
+  }, [isLoggedIn, page, sortBy, sortOrder, query]);
 
-  // On first load, refresh favourites if already logged in
+  // Reload this account's favourites whenever login state changes
   useEffect(() => {
-    if (isLoggedIn) {
-      loadFavouriteIds();
+    if (!isLoggedIn) {
+      setFavouriteIds([]);
+      setVehicles([]);
+      setFilters({});
+      setQuery('');
+      setSearchInput('');
+      setAdvisorText('');
+      setAdvisorStatus('idle');
+      return;
     }
+
+    loadFavouriteIds();
+    loadSharedComparisonFromUrl();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isLoggedIn]);
+
+  // Guests: remember shared link ids until they login
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const idsParam = params.get('ids');
+    if (idsParam && !isLoggedIn) {
+      sessionStorage.setItem('pendingCompareIds', idsParam);
+    }
+  }, [isLoggedIn]);
+
+  async function loadSharedComparisonFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const idsParam = params.get('ids') || sessionStorage.getItem('pendingCompareIds');
+
+    if (!idsParam) {
+      return;
+    }
+
+    const ids = idsParam
+      .split(',')
+      .map((value) => Number(value.trim()))
+      .filter((id) => Number.isInteger(id) && id > 0)
+      .slice(0, 3);
+
+    if (ids.length < 2) {
+      return;
+    }
+
+    try {
+      const vehiclesFromLink = await Promise.all(
+        ids.map((id) => apiFetch(`/api/vehicles/${id}`))
+      );
+      setCompareVehicles(vehiclesFromLink.filter(Boolean));
+      sessionStorage.removeItem('pendingCompareIds');
+      showStatus('Opened shared comparison.');
+    } catch (error) {
+      showStatus(error.message || 'Unable to open shared comparison.', 'error');
+    }
+  }
+
+  async function requestVehicleAdvisor(nextFilters, nextVehicles, searchQuery) {
+    if (!searchQuery || !nextVehicles || nextVehicles.length === 0) {
+      setAdvisorText('');
+      setAdvisorStatus('idle');
+      return;
+    }
+
+    setAdvisorStatus('loading');
+    setAdvisorText('');
+
+    // ONE Gemini call for the top 3–5 vehicles only (backend also caps at 5).
+    const topVehicles = nextVehicles.slice(0, 5).map((vehicle) => ({
+      id: vehicle.id,
+      make: vehicle.make,
+      model: vehicle.model,
+      price: vehicle.price,
+      bodyType: vehicle.bodyType,
+      transmission: vehicle.transmission,
+      fuelType: vehicle.fuelType,
+      seatingCapacity: vehicle.seatingCapacity,
+      mileage: vehicle.mileage,
+      city: vehicle.city,
+      matchScore: vehicle.matchScore ?? null
+    }));
+
+    try {
+      const data = await apiFetch('/api/vehicle-advisor', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: searchQuery,
+          filters: nextFilters || {},
+          vehicles: topVehicles
+        })
+      });
+
+      if (data.advice) {
+        setAdvisorText(data.advice);
+        setAdvisorStatus('ready');
+      } else {
+        setAdvisorText('');
+        setAdvisorStatus('error');
+      }
+    } catch {
+      setAdvisorText('');
+      setAdvisorStatus('error');
+    }
+  }
 
   async function loadVehicles() {
     showStatus('Loading vehicles...');
@@ -144,6 +425,9 @@ function App() {
 
     const url = query ? '/api/vehicles/search' : `/api/vehicles?${params}`;
 
+    // Follow-up search: send current filters so "Only automatic" merges in.
+    const hasPreviousFilters = query && filters && Object.keys(filters).length > 0;
+
     const options = query
       ? {
           method: 'POST',
@@ -152,7 +436,8 @@ function App() {
             page,
             limit,
             sortBy,
-            sortOrder
+            sortOrder,
+            ...(hasPreviousFilters ? { previousFilters: filters } : {})
           })
         }
       : {};
@@ -163,6 +448,23 @@ function App() {
       setVehicles(data.vehicles || []);
       setTotalPages(data.totalPages || 0);
 
+      // Catalogue list has no filters; search returns parsed filters.
+      if (query) {
+        const nextFilters = data.filters || {};
+        setFilters(nextFilters);
+
+        if (data.vehicles && data.vehicles.length > 0) {
+          requestVehicleAdvisor(nextFilters, data.vehicles, query);
+        } else {
+          setAdvisorText('');
+          setAdvisorStatus('idle');
+        }
+      } else {
+        setFilters({});
+        setAdvisorText('');
+        setAdvisorStatus('idle');
+      }
+
       if (!data.vehicles || data.vehicles.length === 0) {
         showStatus(
           'No vehicles match this search. Try changing the budget, city, or vehicle type.'
@@ -171,6 +473,9 @@ function App() {
     } catch (error) {
       showStatus(error.message || 'Unable to load vehicles.', 'error');
       setTotalPages(0);
+      setFilters({});
+      setAdvisorText('');
+      setAdvisorStatus('idle');
     }
   }
 
@@ -179,8 +484,27 @@ function App() {
     setPage(1);
     setQuery(nextQuery);
 
+    if (!nextQuery) {
+      setFilters({});
+    }
+
     if (nextQuery) {
       saveSearchHistory(nextQuery);
+    }
+  }
+
+  function removeFilter(key) {
+    const nextFilters = { ...filters };
+    delete nextFilters[key];
+    setFilters(nextFilters);
+
+    const nextQuery = buildQueryFromFilters(nextFilters);
+    setPage(1);
+    setSearchInput(nextQuery);
+    setQuery(nextQuery);
+
+    if (!nextQuery) {
+      setFilters({});
     }
   }
 
@@ -294,9 +618,6 @@ function App() {
   function openAuth(mode) {
     setAuthMode(mode);
     setAuthMessage('');
-    setAuthName('');
-    setAuthEmail('');
-    setAuthPassword('');
     setAuthOpen(true);
   }
 
@@ -306,16 +627,13 @@ function App() {
 
     try {
       const isRegister = authMode === 'register';
+      const formData = new FormData(event.currentTarget);
+      const name = String(formData.get('name') || '').trim();
+      const email = String(formData.get('email') || '').trim();
+      const password = String(formData.get('password') || '');
       const body = isRegister
-        ? {
-            name: authName.trim(),
-            email: authEmail.trim(),
-            password: authPassword
-          }
-        : {
-            email: authEmail.trim(),
-            password: authPassword
-          };
+        ? { name, email, password }
+        : { email, password };
 
       const data = await apiFetch(
         isRegister ? '/api/auth/register' : '/api/auth/login',
@@ -325,11 +643,20 @@ function App() {
         }
       );
 
+      // After register: do not open dashboard. Ask user to login.
+      if (isRegister) {
+        setAuthMode('login');
+        setAuthMessage('Account created. Please login with your email and password.');
+        return;
+      }
+
       localStorage.setItem('authToken', data.token);
       localStorage.setItem('authUser', JSON.stringify(data.user));
       setUser(data.user);
+      setCompareVehicles([]);
+      setUserDialogOpen(false);
       setAuthOpen(false);
-      await loadFavouriteIds();
+      setAuthMessage('');
     } catch (error) {
       setAuthMessage(error.message || 'Authentication failed.');
     }
@@ -340,8 +667,116 @@ function App() {
     localStorage.removeItem('authUser');
     setUser(null);
     setFavouriteIds([]);
+    setCompareVehicles([]);
+    setUserDialogOpen(false);
+    setUserDialogItems([]);
     if (clearStatus) {
       hideStatus();
+    }
+  }
+
+  function handleAccountError(error) {
+    if (error.status === 401) {
+      logout(false);
+      openAuth('login');
+      return true;
+    }
+
+    return false;
+  }
+
+  async function saveCurrentSearch() {
+    if (!getToken()) {
+      openAuth('login');
+      return;
+    }
+
+    const searchText = (query || searchInput).trim();
+
+    if (!searchText) {
+      showStatus('Run a search before saving it.', 'error');
+      return;
+    }
+
+    try {
+      await apiFetch('/api/user/saved-searches', {
+        method: 'POST',
+        body: JSON.stringify({
+          searchText,
+          filters
+        })
+      });
+      showStatus('Search saved to your alerts list.');
+    } catch (error) {
+      if (handleAccountError(error)) {
+        return;
+      }
+      showStatus(error.message || 'Unable to save search.', 'error');
+    }
+  }
+
+  async function showSavedSearches() {
+    if (!getToken()) {
+      openAuth('login');
+      return;
+    }
+
+    setUserDialogTitle('Saved searches');
+    setUserDialogMode('saved-searches');
+    setUserDialogOpen(true);
+    setUserDialogLoading(true);
+    setUserDialogError('');
+    setUserDialogItems([]);
+
+    try {
+      const data = await apiFetch('/api/user/saved-searches');
+      setUserDialogItems(data.savedSearches || []);
+    } catch (error) {
+      if (handleAccountError(error)) {
+        return;
+      }
+      setUserDialogError(error.message || 'Unable to load saved searches.');
+    } finally {
+      setUserDialogLoading(false);
+    }
+  }
+
+  async function deleteSavedSearch(id) {
+    try {
+      await apiFetch(`/api/user/saved-searches/${id}`, { method: 'DELETE' });
+      showSavedSearches();
+    } catch (error) {
+      if (handleAccountError(error)) {
+        return;
+      }
+      setUserDialogError(error.message || 'Unable to delete saved search.');
+    }
+  }
+
+  function runSavedSearch(item) {
+    const nextQuery = item.searchText || item.query || '';
+    setUserDialogOpen(false);
+    setFilters({});
+    setSearchInput(nextQuery);
+    setPage(1);
+    setQuery(nextQuery);
+  }
+
+  async function shareComparison() {
+    if (compareVehicles.length < 2) {
+      showStatus('Select at least 2 vehicles to share.', 'error');
+      return;
+    }
+
+    const ids = compareVehicles.map((vehicle) => vehicle.id).join(',');
+    // No react-router: use query string on the current page so guests can open it.
+    const link = `${window.location.origin}/?ids=${ids}`;
+
+    try {
+      await navigator.clipboard.writeText(link);
+      showStatus('Comparison link copied to clipboard.');
+    } catch {
+      window.prompt('Copy this comparison link:', link);
     }
   }
 
@@ -363,6 +798,9 @@ function App() {
       const list = data.favourites || data.vehicles || [];
       setUserDialogItems(list);
     } catch (error) {
+      if (handleAccountError(error)) {
+        return;
+      }
       setUserDialogError(error.message || 'Unable to load saved vehicles.');
     } finally {
       setUserDialogLoading(false);
@@ -386,6 +824,9 @@ function App() {
       const data = await apiFetch('/api/user/search-history');
       setUserDialogItems(data.history || []);
     } catch (error) {
+      if (handleAccountError(error)) {
+        return;
+      }
       setUserDialogError(error.message || 'Unable to load search history.');
     } finally {
       setUserDialogLoading(false);
@@ -409,6 +850,9 @@ function App() {
       const data = await apiFetch('/api/user/saved-comparisons');
       setUserDialogItems(data.comparisons || []);
     } catch (error) {
+      if (handleAccountError(error)) {
+        return;
+      }
       setUserDialogError(error.message || 'Unable to load comparisons.');
     } finally {
       setUserDialogLoading(false);
@@ -447,6 +891,9 @@ function App() {
       });
       showStatus('Comparison saved to your account.');
     } catch (error) {
+      if (handleAccountError(error)) {
+        return;
+      }
       showStatus(error.message || 'Unable to save comparison.', 'error');
     }
   }
@@ -456,6 +903,9 @@ function App() {
       await apiFetch(`/api/user/saved-comparisons/${id}`, { method: 'DELETE' });
       showSavedComparisons();
     } catch (error) {
+      if (handleAccountError(error)) {
+        return;
+      }
       setUserDialogError(error.message || 'Unable to delete comparison.');
     }
   }
@@ -536,19 +986,29 @@ function App() {
         </div>
       </header>
 
+      {!isLoggedIn ? (
+        <GuestLanding
+          onLogin={() => openAuth('login')}
+          onRegister={() => openAuth('register')}
+          hasSharedLink={Boolean(
+            new URLSearchParams(window.location.search).get('ids') ||
+              sessionStorage.getItem('pendingCompareIds')
+          )}
+        />
+      ) : (
       <main className="mx-auto max-w-7xl px-5 pb-16 pt-10 lg:px-10 lg:pt-16">
         {/* Hero / search */}
         <section className="grid items-end gap-10 lg:grid-cols-[1.1fr_0.9fr]">
           <div>
             <p className="mb-4 text-xs font-bold uppercase tracking-[0.25em] text-coral">
-              Find your next drive
+              Search + AI Advisor
             </p>
             <h1 className="max-w-3xl font-display text-5xl leading-[0.98] sm:text-7xl">
               Tell us what you want to drive.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-ink/65">
-              Search the catalogue like you would ask a friend. Budget, city,
-              fuel, seats, safety, and more.
+              Search in plain English. We filter and rank cars from PostgreSQL, then
+              the AI Vehicle Advisor explains your strongest matches.
             </p>
           </div>
 
@@ -564,6 +1024,9 @@ function App() {
               onQueryChange={setSearchInput}
               onSearch={handleSearch}
             />
+            <p className="mt-4 text-xs leading-5 text-paper/55">
+              After results load, Gemini writes a short advisor note on your top cars.
+            </p>
           </div>
         </section>
 
@@ -578,7 +1041,13 @@ function App() {
                 key={item.query}
                 type="button"
                 className="rounded-full border border-ink/15 px-4 py-2 text-sm hover:border-coral hover:text-coral"
-                onClick={() => setSearchInput(item.query)}
+                onClick={() => {
+                  // Example chips start a fresh search (do not merge old filters).
+                  setFilters({});
+                  setSearchInput(item.query);
+                  setPage(1);
+                  setQuery(item.query);
+                }}
               >
                 {item.label}
               </button>
@@ -595,7 +1064,8 @@ function App() {
                   Your space
                 </p>
                 <p className="mt-1 text-sm text-ink/60">
-                  Keep your favourite cars, searches and comparisons in one place.
+                  Favourites, search history, saved searches, and comparisons —
+                  plus AI Advisor notes saved with your account when you search.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -616,6 +1086,13 @@ function App() {
                 <button
                   type="button"
                   className="rounded-full border border-ink/15 px-4 py-2 text-sm font-bold hover:border-coral hover:text-coral"
+                  onClick={showSavedSearches}
+                >
+                  Saved Searches
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-ink/15 px-4 py-2 text-sm font-bold hover:border-coral hover:text-coral"
                   onClick={showSavedComparisons}
                 >
                   Saved Comparisons
@@ -630,11 +1107,25 @@ function App() {
           <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.18em] text-coral">
-                Catalogue
+                {query ? 'Matched results' : 'Catalogue'}
               </p>
               <h2 className="mt-2 font-display text-4xl">
                 {query ? 'Your matches' : 'Explore vehicles'}
               </h2>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-ink/55">
+                {query
+                  ? 'Match scores and Why-this-car reasons come from your filters. The AI Vehicle Advisor summarises the top ranked cars below.'
+                  : 'Browse the live catalogue, or search in plain English to unlock filters, scores, and the AI Vehicle Advisor.'}
+              </p>
+              {query && (
+                <button
+                  type="button"
+                  className="mt-3 rounded-full border border-pine px-4 py-2 text-sm font-bold text-pine hover:bg-pine hover:text-paper"
+                  onClick={saveCurrentSearch}
+                >
+                  Save Search
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -669,8 +1160,62 @@ function App() {
             </div>
           )}
 
+          {filtersToChips(filters).length > 0 && (
+            <div className="mb-5">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-ink/45">
+                Active filters
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {filtersToChips(filters).map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-full border border-pine/20 bg-mint/40 px-4 py-2 text-sm font-bold text-pine hover:border-coral hover:bg-coral/10 hover:text-coral"
+                    onClick={() => removeFilter(chip.key)}
+                    title={`Remove ${chip.label}`}
+                  >
+                    <span>{chip.label}</span>
+                    <span aria-hidden="true">×</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {query && advisorStatus !== 'idle' && (
+            <div className="mb-6 rounded-3xl border border-mint/40 bg-mint/15 p-5 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-pine">
+                  AI Vehicle Advisor
+                </p>
+                {advisorStatus === 'ready' && (
+                  <span className="text-xs font-bold text-pine/70">
+                    Top {Math.min(5, vehicles.length)} matches explained
+                  </span>
+                )}
+              </div>
+              {advisorStatus === 'loading' && (
+                <p className="mt-3 text-sm text-ink/60">
+                  AI Advisor is analyzing your results...
+                </p>
+              )}
+              {advisorStatus === 'error' && (
+                <p className="mt-3 text-sm text-ink/60">
+                  AI Advisor is currently unavailable. Your vehicle results above
+                  still work normally.
+                </p>
+              )}
+              {advisorStatus === 'ready' && advisorText && (
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-ink/75">
+                  {advisorText}
+                </p>
+              )}
+            </div>
+          )}
+
           <VehicleList
             vehicles={vehicles}
+            filters={filters}
             compareVehicles={compareVehicles}
             favouriteIds={favouriteIds}
             onView={loadDetail}
@@ -708,6 +1253,13 @@ function App() {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      className="rounded-full border border-pine px-4 py-2 text-sm font-bold text-pine transition hover:bg-pine hover:text-paper"
+                      onClick={shareComparison}
+                    >
+                      Share comparison
+                    </button>
+                    <button
+                      type="button"
                       className="rounded-full bg-pine px-4 py-2 text-sm font-bold text-paper transition hover:bg-ink"
                       onClick={saveCurrentComparison}
                     >
@@ -734,6 +1286,14 @@ function App() {
                           <th key={vehicle.id} className="min-w-[220px] px-5 py-4">
                             <div className="flex items-start justify-between gap-4">
                               <div>
+                                <img
+                                  src={getVehicleImage(vehicle)}
+                                  alt={`${vehicle.make} ${vehicle.model}`}
+                                  className="mb-3 h-24 w-full rounded-xl object-cover"
+                                  onError={(event) => {
+                                    event.currentTarget.src = getPlaceholderImage(vehicle.bodyType);
+                                  }}
+                                />
                                 <p className="text-xs font-bold uppercase tracking-[0.15em] text-coral">
                                   {vehicle.make}
                                 </p>
@@ -773,6 +1333,23 @@ function App() {
                           ))}
                         </tr>
                       ))}
+                      <tr className="border-b border-ink/10 last:border-0">
+                        <td className="px-5 py-4 font-bold text-ink/55">
+                          Est. EMI (20% down, 9%, 5 yrs)
+                        </td>
+                        {compareVehicles.map((vehicle) => {
+                          const loan = Math.max(Number(vehicle.price) * 0.8, 0);
+                          const emi = calculateEMI(loan, 9, 5);
+                          return (
+                            <td
+                              key={`emi-${vehicle.id}`}
+                              className="px-5 py-4 font-bold text-pine"
+                            >
+                              {money(emi)} / mo
+                            </td>
+                          );
+                        })}
+                      </tr>
                     </tbody>
                   </table>
                 </div>
@@ -808,6 +1385,7 @@ function App() {
           )}
         </section>
       </main>
+      )}
 
       {/* Auth dialog */}
       {authOpen && (
@@ -838,7 +1416,7 @@ function App() {
               </button>
             </div>
 
-            <form className="mt-8 space-y-4" onSubmit={submitAuth}>
+            <form key={authMode} className="mt-8 space-y-4" onSubmit={submitAuth} autoComplete="on">
               {authMode === 'register' && (
                 <div>
                   <label
@@ -849,9 +1427,11 @@ function App() {
                   </label>
                   <input
                     id="auth-name"
+                    name="name"
                     type="text"
-                    value={authName}
-                    onChange={(event) => setAuthName(event.target.value)}
+                    required
+                    minLength={2}
+                    autoComplete="name"
                     placeholder="Your name"
                     className="w-full rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none focus:border-pine"
                   />
@@ -867,10 +1447,10 @@ function App() {
                 </label>
                 <input
                   id="auth-email"
+                  name="email"
                   type="email"
                   required
-                  value={authEmail}
-                  onChange={(event) => setAuthEmail(event.target.value)}
+                  autoComplete="email"
                   placeholder="you@example.com"
                   className="w-full rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none focus:border-pine"
                 />
@@ -885,17 +1465,24 @@ function App() {
                 </label>
                 <input
                   id="auth-password"
+                  name="password"
                   type="password"
                   required
-                  value={authPassword}
-                  onChange={(event) => setAuthPassword(event.target.value)}
+                  minLength={6}
+                  autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
                   placeholder="••••••••"
                   className="w-full rounded-2xl border border-ink/15 bg-white px-4 py-3 outline-none focus:border-pine"
                 />
               </div>
 
               {authMessage && (
-                <p className="rounded-2xl bg-coral/10 p-3 text-sm text-coral">
+                <p
+                  className={`rounded-2xl p-3 text-sm ${
+                    authMessage.startsWith('Account created')
+                      ? 'bg-mint/30 text-pine'
+                      : 'bg-coral/10 text-coral'
+                  }`}
+                >
                   {authMessage}
                 </p>
               )}
@@ -924,7 +1511,7 @@ function App() {
       )}
 
       {/* User tools dialog */}
-      {userDialogOpen && (
+      {isLoggedIn && userDialogOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-pine/50 p-4"
           onClick={() => setUserDialogOpen(false)}
@@ -941,6 +1528,7 @@ function App() {
                 <h2 className="mt-2 font-display text-4xl">
                   {userDialogMode === 'favourites' && 'Your saved vehicles'}
                   {userDialogMode === 'history' && 'Your recent searches'}
+                  {userDialogMode === 'saved-searches' && 'Your saved search alerts'}
                   {userDialogMode === 'comparisons' && 'Your saved comparisons'}
                 </h2>
               </div>
@@ -973,6 +1561,8 @@ function App() {
                         'Tap the heart on any vehicle to save it here.'}
                       {userDialogMode === 'history' &&
                         'Your logged-in vehicle searches will appear here.'}
+                      {userDialogMode === 'saved-searches' &&
+                        'Save a search after you run it to check it again later.'}
                       {userDialogMode === 'comparisons' &&
                         'Select two or three vehicles and save the comparison.'}
                     </p>
@@ -1038,6 +1628,41 @@ function App() {
                   </button>
                 ))}
 
+              {userDialogMode === 'saved-searches' &&
+                userDialogItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="mb-3 rounded-2xl border border-ink/10 bg-white/60 p-4"
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-bold">{item.searchText}</p>
+                        <p className="mt-1 text-xs text-ink/45">
+                          {new Date(
+                            item.createdAt || item.created_at
+                          ).toLocaleString('en-IN')}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="rounded-full border border-pine px-4 py-2 text-sm font-bold text-pine"
+                          onClick={() => runSavedSearch(item)}
+                        >
+                          Check Now
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-coral/30 px-4 py-2 text-sm font-bold text-coral"
+                          onClick={() => deleteSavedSearch(item.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
               {userDialogMode === 'comparisons' &&
                 userDialogItems.map((comparison) => (
                   <div
@@ -1061,7 +1686,8 @@ function App() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        {Array.isArray(comparison.vehicles) && (
+                        {Array.isArray(comparison.vehicles) &&
+                          comparison.vehicles.length >= 2 && (
                           <button
                             type="button"
                             className="rounded-full border border-pine px-4 py-2 text-sm font-bold text-pine"
@@ -1087,7 +1713,7 @@ function App() {
       )}
 
       {/* Vehicle detail dialog */}
-      {detailOpen && (
+      {isLoggedIn && detailOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-pine/50 p-4"
           onClick={() => setDetailOpen(false)}
@@ -1115,6 +1741,17 @@ function App() {
 
             {detailVehicle && (
               <>
+                <div className="mb-5 overflow-hidden rounded-2xl bg-pine/10">
+                  <img
+                    src={getVehicleImage(detailVehicle)}
+                    alt={`${detailVehicle.make} ${detailVehicle.model}`}
+                    className="h-48 w-full object-cover"
+                    onError={(event) => {
+                      event.currentTarget.src = getPlaceholderImage(detailVehicle.bodyType);
+                    }}
+                  />
+                </div>
+
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-coral">
@@ -1168,6 +1805,16 @@ function App() {
                     <strong className="mt-1 block text-xl">
                       {money(detailVehicle.price)}
                     </strong>
+                    {detailVehicle.similarAveragePrice != null && (
+                      <p className="mt-1 text-ink/55">
+                        Similar avg: {formatLakh(detailVehicle.similarAveragePrice)}
+                      </p>
+                    )}
+                    {getPriceInsightText(detailVehicle) && (
+                      <p className="mt-1 font-bold text-pine">
+                        {getPriceInsightText(detailVehicle)}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <p className="text-ink/45">Location</p>
@@ -1207,6 +1854,13 @@ function App() {
                       {detailVehicle.transmission}
                     </strong>
                   </div>
+                </div>
+
+                <div className="mt-6">
+                  <EmiCalculator
+                    key={detailVehicle.id}
+                    vehiclePrice={detailVehicle.price}
+                  />
                 </div>
               </>
             )}

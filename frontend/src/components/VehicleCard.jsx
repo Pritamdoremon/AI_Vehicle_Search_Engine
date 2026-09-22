@@ -6,22 +6,191 @@ function money(value) {
   }).format(value);
 }
 
+function formatLakh(amount) {
+  const lakhs = Number(amount) / 100000;
+  if (Number.isInteger(lakhs)) {
+    return `₹${lakhs}L`;
+  }
+  return `₹${lakhs.toFixed(1)}L`;
+}
+
+function formatPriceDelta(delta) {
+  const abs = Math.abs(Number(delta));
+  if (abs >= 100000) {
+    return formatLakh(abs);
+  }
+  return `₹${Math.round(abs / 1000)}K`;
+}
+
+function getPriceInsightText(vehicle) {
+  if (
+    vehicle == null ||
+    vehicle.similarAveragePrice == null ||
+    vehicle.priceDelta == null
+  ) {
+    return null;
+  }
+
+  const delta = Number(vehicle.priceDelta);
+  if (Math.abs(delta) < 1000) {
+    return 'Priced near similar vehicles';
+  }
+  if (delta < 0) {
+    return `${formatPriceDelta(delta)} below similar vehicles`;
+  }
+  return `${formatPriceDelta(delta)} above similar vehicles`;
+}
+
+// Simple body-type placeholder when imageUrl is missing.
+function getPlaceholderImage(bodyType) {
+  const label = encodeURIComponent((bodyType || 'car').toUpperCase());
+  return `https://placehold.co/800x450/1f3d34/b9e4d0?text=${label}`;
+}
+
+function getVehicleImage(vehicle) {
+  return vehicle.imageUrl || vehicle.image_url || getPlaceholderImage(vehicle.bodyType);
+}
+
+// Build "Why this car" reasons from active search filters + this vehicle.
+// No LLM call — only show reasons that truly match.
+function getWhyThisCar(vehicle, filters) {
+  if (!filters || !vehicle) {
+    return [];
+  }
+
+  const reasons = [];
+
+  if (filters.bodyType && vehicle.bodyType === filters.bodyType) {
+    reasons.push(`Matches ${filters.bodyType.toUpperCase()}`);
+  }
+
+  if (filters.fuelType && vehicle.fuelType === filters.fuelType) {
+    reasons.push(filters.fuelType);
+  }
+
+  if (filters.transmission && vehicle.transmission === filters.transmission) {
+    reasons.push(
+      filters.transmission.charAt(0).toUpperCase() + filters.transmission.slice(1)
+    );
+  }
+
+  if (filters.make && vehicle.make === filters.make) {
+    reasons.push(filters.make);
+  }
+
+  if (filters.model && vehicle.model === filters.model) {
+    reasons.push(filters.model);
+  }
+
+  if (filters.city && vehicle.city === filters.city) {
+    reasons.push(filters.city);
+  }
+
+  if (
+    filters.seatingCapacity !== undefined &&
+    Number(vehicle.seatingCapacity) === Number(filters.seatingCapacity)
+  ) {
+    reasons.push(`${filters.seatingCapacity} seats`);
+  }
+
+  if (
+    filters.maxPrice !== undefined &&
+    Number(vehicle.price) <= Number(filters.maxPrice)
+  ) {
+    reasons.push(`Within your ${formatLakh(filters.maxPrice)} budget`);
+  }
+
+  if (
+    filters.minPrice !== undefined &&
+    Number(vehicle.price) >= Number(filters.minPrice)
+  ) {
+    reasons.push(`Above ${formatLakh(filters.minPrice)}`);
+  }
+
+  if (
+    filters.maxKmDriven !== undefined &&
+    Number(vehicle.kmDriven) <= Number(filters.maxKmDriven)
+  ) {
+    reasons.push(`Under ${Number(filters.maxKmDriven).toLocaleString('en-IN')} km`);
+  }
+
+  if (
+    filters.minKmDriven !== undefined &&
+    Number(vehicle.kmDriven) >= Number(filters.minKmDriven)
+  ) {
+    reasons.push(`Above ${Number(filters.minKmDriven).toLocaleString('en-IN')} km`);
+  }
+
+  if (
+    filters.minSafetyRating !== undefined &&
+    Number(vehicle.safetyRating) >= Number(filters.minSafetyRating)
+  ) {
+    reasons.push(`Safety ≥ ${filters.minSafetyRating}`);
+  }
+
+  if (
+    filters.minYear !== undefined &&
+    Number(vehicle.year) >= Number(filters.minYear)
+  ) {
+    reasons.push(`From ${filters.minYear}`);
+  }
+
+  if (
+    filters.maxYear !== undefined &&
+    Number(vehicle.year) <= Number(filters.maxYear)
+  ) {
+    reasons.push(`Until ${filters.maxYear}`);
+  }
+
+  if (
+    filters.ownership !== undefined &&
+    Number(vehicle.ownership) === Number(filters.ownership)
+  ) {
+    reasons.push(`${filters.ownership} owner`);
+  }
+
+  return reasons;
+}
+
 function VehicleCard({
   vehicle,
+  filters,
   isSelected,
   isFavourite,
   onView,
   onCompare,
   onFavourite
 }) {
+  const whyReasons = getWhyThisCar(vehicle, filters);
+  const matchScore =
+    vehicle.matchScore != null ? Math.round(Number(vehicle.matchScore)) : null;
+  const priceInsight = getPriceInsightText(vehicle);
+
   return (
     <article className="group flex flex-col justify-between rounded-3xl border border-ink/10 bg-white/55 p-5 transition hover:-translate-y-1 hover:border-mint hover:bg-white">
       <div>
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-5 overflow-hidden rounded-2xl bg-pine/10">
+          <img
+            src={getVehicleImage(vehicle)}
+            alt={`${vehicle.make} ${vehicle.model}`}
+            className="h-40 w-full object-cover"
+            loading="lazy"
+            onError={(event) => {
+              event.currentTarget.src = getPlaceholderImage(vehicle.bodyType);
+            }}
+          />
+        </div>
+
+        <div className="mb-6 flex items-start justify-between">
           <span className="rounded-full bg-mint/60 px-3 py-1 text-xs font-bold uppercase tracking-wider text-pine">
             {vehicle.bodyType}
           </span>
-          <span className="text-sm text-ink/45">{vehicle.year}</span>
+          <div className="text-right">
+            <span className="text-sm text-ink/45">{vehicle.year}</span>
+            {matchScore != null && (
+              <p className="mt-1 text-sm font-bold text-pine">{matchScore}% Match</p>
+            )}
+          </div>
         </div>
 
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-coral">
@@ -31,12 +200,36 @@ function VehicleCard({
         <p className="mt-1 text-sm text-ink/55">{vehicle.variant}</p>
         <p className="mt-5 text-2xl font-bold">{money(vehicle.price)}</p>
 
+        {vehicle.similarAveragePrice != null && (
+          <p className="mt-1 text-sm text-ink/55">
+            Similar vehicles average: {formatLakh(vehicle.similarAveragePrice)}
+          </p>
+        )}
+        {priceInsight && (
+          <p className="mt-1 text-sm font-bold text-pine">
+            Price Insight: {priceInsight}
+          </p>
+        )}
+
         <div className="mt-5 grid grid-cols-2 gap-y-3 border-t border-ink/10 pt-4 text-sm text-ink/65">
           <span>{vehicle.fuelType}</span>
           <span>{vehicle.transmission}</span>
           <span>{Number(vehicle.kmDriven).toLocaleString('en-IN')} km</span>
           <span>{vehicle.seatingCapacity} seats</span>
         </div>
+
+        {whyReasons.length > 0 && (
+          <div className="mt-5 rounded-2xl border border-mint/40 bg-mint/20 p-3">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-pine">
+              Why this car
+            </p>
+            <ul className="mt-2 space-y-1 text-sm text-ink/70">
+              {whyReasons.map((reason) => (
+                <li key={reason}>✓ {reason}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div className="mt-7 flex flex-wrap items-center justify-between gap-2 border-t border-ink/10 pt-4">
@@ -80,4 +273,4 @@ function VehicleCard({
 }
 
 export default VehicleCard;
-export { money };
+export { money, getVehicleImage, getPlaceholderImage, getPriceInsightText, formatLakh };
