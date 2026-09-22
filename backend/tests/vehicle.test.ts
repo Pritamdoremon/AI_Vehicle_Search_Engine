@@ -12,6 +12,7 @@ const vehicle: Vehicle = {
   id: 1, make: 'Tata', model: 'Nexon', variant: 'XZ', year: 2023, price: 1200000,
   fuelType: 'petrol', transmission: 'automatic', bodyType: 'suv', kmDriven: 12000,
   safetyRating: 5, seatingCapacity: 5, mileage: 17, city: 'Bangalore', ownership: 1,
+  imageUrl: null,
   createdAt: new Date('2024-01-01')
 };
 
@@ -24,6 +25,9 @@ class FakeRepository {
   }
   public async findById(id: number): Promise<Vehicle | null> {
     return id === vehicle.id ? vehicle : null;
+  }
+  public async getAveragePrice(): Promise<number | null> {
+    return 1300000;
   }
 }
 
@@ -82,5 +86,26 @@ describe('vehicle search API', () => {
       maxPrice: 1500000,
       city: 'Bangalore'
     });
+  });
+  it('merges previousFilters with newly parsed filters', async () => {
+    const repository = new FakeRepository();
+    const app = createApp(
+      repository as unknown as VehicleRepository,
+      new FakeParser({ transmission: 'automatic' })
+    );
+    const response = await request(app).post('/api/vehicles/search').send({
+      query: 'Only automatic',
+      previousFilters: { bodyType: 'suv', maxPrice: 1500000, city: 'Bangalore' }
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.filters).toEqual({
+      bodyType: 'suv',
+      maxPrice: 1500000,
+      city: 'Bangalore',
+      transmission: 'automatic'
+    });
+    expect(response.body.vehicles[0].matchScore).toBeTypeOf('number');
+    expect(response.body.vehicles[0].similarAveragePrice).toBe(1300000);
   });
 });

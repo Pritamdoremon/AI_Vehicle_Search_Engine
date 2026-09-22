@@ -23,5 +23,10 @@ export interface Vehicle {
   mileage: number;
   city: string;
   ownership: number;
+  imageUrl: string | null;
   createdAt: Date;
+  // Optional fields added by search / detail enrichment (not DB columns).
+  matchScore?: number | null;
+  similarAveragePrice?: number | null;
+  priceDelta?: number | null;
 }

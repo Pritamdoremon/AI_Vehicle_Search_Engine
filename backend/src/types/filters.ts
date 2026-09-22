@@ -23,6 +23,8 @@ export type VehicleFilters = z.infer<typeof vehicleFiltersSchema>;
 
 export const searchRequestSchema = z.object({
   query: z.string().trim().min(1).max(500),
+  // Optional prior filters so follow-up searches can merge ("Only automatic").
+  previousFilters: vehicleFiltersSchema.optional(),
   page: z.number().int().min(1).optional(),
   limit: z.number().int().min(1).max(100).optional(),
   sortBy: z.enum(['price', 'year', 'kmDriven', 'safetyRating', 'createdAt']).optional(),

@@ -57,7 +57,7 @@ export function createVehicleController(repository: VehicleRepository, searchSer
           sortBy: input.sortBy,
           sortOrder: input.sortOrder
         });
-        response.json(await searchService.search(input.query, options));
+        response.json(await searchService.search(input.query, options, input.previousFilters));
       } catch (error: unknown) {
         next(error);
       }
@@ -77,7 +77,20 @@ export function createVehicleController(repository: VehicleRepository, searchSer
         if (!Number.isInteger(id) || id < 1) throw new AppError(400, 'Vehicle id must be a positive integer.');
         const vehicle = await repository.findById(id);
         if (!vehicle) throw new AppError(404, 'Vehicle not found.');
-        response.json(vehicle);
+
+        const similarAveragePrice = await repository.getAveragePrice({
+          bodyType: vehicle.bodyType,
+          fuelType: vehicle.fuelType
+        });
+
+        response.json({
+          ...vehicle,
+          similarAveragePrice,
+          priceDelta:
+            similarAveragePrice === null
+              ? null
+              : vehicle.price - similarAveragePrice
+        });
       } catch (error: unknown) {
         next(error);
       }

@@ -6,6 +6,7 @@ import { VehicleRepository } from './repositories/vehicleRepository';
 import { createAuthRoutes } from './routes/authRoutes';
 import { createVehicleRoutes } from './routes/vehicleRoutes';
 import { createUserRoutes } from './routes/userRoutes';
+import { createVehicleAdvisorRoutes } from './routes/vehicleAdvisorRoutes';
 import { FilterParser, createFilterParser } from './services/llmFilterService';
 
 export function createApp(repository = new VehicleRepository(pool), parser: FilterParser = createFilterParser()): express.Express {
@@ -18,6 +19,7 @@ export function createApp(repository = new VehicleRepository(pool), parser: Filt
   app.use('/api/auth', createAuthRoutes());
   app.use('/api/user', createUserRoutes());
   app.use('/api/vehicles', createVehicleRoutes(repository, parser));
+  app.use('/api/vehicle-advisor', createVehicleAdvisorRoutes());
   app.use(express.static(frontendDist));
   app.use(errorHandler);
   return app;

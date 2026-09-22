@@ -13,17 +13,9 @@ export function authenticate(
 ): void {
   try {
     const authHeader = request.headers.authorization;
+    const [scheme, token] = authHeader?.split(' ') ?? [];
 
-    if (!authHeader) {
-      throw new AppError(
-        401,
-        'Authentication required.'
-      );
-    }
-
-    const token = authHeader.split(' ')[1];
-
-    if (!token) {
+    if (scheme !== 'Bearer' || !token) {
       throw new AppError(
         401,
         'Authentication required.'
@@ -37,10 +29,19 @@ export function authenticate(
     }
 
     const decoded = jwt.verify(token, secret) as {
-      userId: number;
+      userId?: unknown;
     };
 
-    request.userId = decoded.userId;
+    const userId = Number(decoded.userId);
+
+    if (!Number.isInteger(userId) || userId < 1) {
+      throw new AppError(
+        401,
+        'Invalid or expired token.'
+      );
+    }
+
+    request.userId = userId;
 
     next();
   } catch (error: unknown) {

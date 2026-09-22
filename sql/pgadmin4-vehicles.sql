@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
     mileage NUMERIC(5, 2) NOT NULL,
     city VARCHAR(50) NOT NULL,
     ownership INTEGER NOT NULL,
+    image_url TEXT,
     created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT vehicles_year_check

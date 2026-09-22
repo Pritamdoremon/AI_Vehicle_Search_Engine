@@ -28,7 +28,7 @@ const sortColumns: Record<VehicleSortBy, string> = {
 const vehicleColumns = `
   id, make, model, variant, year, price, fuel_type, transmission,
   body_type, km_driven, safety_rating, seating_capacity, mileage,
-  city, ownership, created_at
+  city, ownership, image_url, created_at
 `;
 
 function mapVehicle(row: QueryResultRow): Vehicle {
@@ -48,6 +48,7 @@ function mapVehicle(row: QueryResultRow): Vehicle {
     mileage: Number(row.mileage),
     city: row.city,
     ownership: row.ownership,
+    imageUrl: row.image_url ?? null,
     createdAt: row.created_at
   };
 }
@@ -108,6 +109,35 @@ export class VehicleRepository {
   public async findById(id: number): Promise<Vehicle | null> {
     const result = await this.database.query(`SELECT ${vehicleColumns} FROM vehicles WHERE id = $1`, [id]);
     return result.rows.length === 0 ? null : mapVehicle(result.rows[0]);
+  }
+
+  // Average price of similar cars (same body type, optionally same fuel).
+  public async getAveragePrice(similarity: {
+    bodyType?: string;
+    fuelType?: string;
+  }): Promise<number | null> {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (similarity.bodyType) {
+      values.push(similarity.bodyType);
+      conditions.push(`body_type = $${values.length}`);
+    }
+    if (similarity.fuelType) {
+      values.push(similarity.fuelType);
+      conditions.push(`fuel_type = $${values.length}`);
+    }
+
+    if (conditions.length === 0) {
+      return null;
+    }
+
+    const result = await this.database.query(
+      `SELECT AVG(price)::float AS avg_price FROM vehicles WHERE ${conditions.join(' AND ')}`,
+      values
+    );
+    const avg = result.rows[0]?.avg_price;
+    return avg === null || avg === undefined ? null : Number(avg);
   }
 }
 

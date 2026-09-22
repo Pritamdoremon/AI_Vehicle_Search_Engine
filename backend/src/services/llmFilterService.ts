@@ -111,46 +111,85 @@ export class OpenAiFilterParser implements FilterParser {
   }
 }
 
+/**
+ * Shared Gemini HTTP call (same key/model as the filter parser).
+ * Returns plain text, or null when Gemini is unavailable.
+ */
+export async function callGeminiText(
+  prompt: string,
+  options: { temperature?: number; json?: boolean } = {}
+): Promise<string | null> {
+  const apiKey = process.env.GEMINI_API_KEY ?? '';
+  const model = process.env.GEMINI_MODEL ?? 'gemini-3.6-flash';
+
+  if (!apiKey || apiKey === 'your_gemini_key_here') {
+    return null;
+  }
+
+  const generationConfig: Record<string, unknown> = {
+    temperature: options.temperature ?? 0
+  };
+  if (options.json) {
+    generationConfig.responseMimeType = 'application/json';
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig
+      })
+    }
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data: unknown = await response.json();
+  if (!isRecord(data) || !Array.isArray(data.candidates)) {
+    return null;
+  }
+
+  const firstCandidate = data.candidates[0];
+  if (
+    !isRecord(firstCandidate) ||
+    !isRecord(firstCandidate.content) ||
+    !Array.isArray(firstCandidate.content.parts)
+  ) {
+    return null;
+  }
+
+  const firstPart = firstCandidate.content.parts[0];
+  if (!isRecord(firstPart) || typeof firstPart.text !== 'string') {
+    return null;
+  }
+
+  return firstPart.text.trim() || null;
+}
+
 export class GeminiFilterParser implements FilterParser {
-  private readonly apiKey: string;
-  private readonly model: string;
   private readonly fallback: FilterParser;
 
-  public constructor(
-    apiKey = process.env.GEMINI_API_KEY ?? '',
-    model = process.env.GEMINI_MODEL ?? 'gemini-3.6-flash',
-    fallback: FilterParser = new LocalFilterParser()
-  ) {
-    this.apiKey = apiKey;
-    this.model = model;
+  public constructor(fallback: FilterParser = new LocalFilterParser()) {
     this.fallback = fallback;
   }
 
   public async parse(query: string): Promise<VehicleFilters> {
-    if (!this.apiKey || this.apiKey === 'your_gemini_key_here') return this.fallback.parse(query);
-
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `${filterPrompt}\n\nUser query: ${query}` }] }],
-          generationConfig: { temperature: 0, responseMimeType: 'application/json' }
-        })
+      const text = await callGeminiText(`${filterPrompt}\n\nUser query: ${query}`, {
+        temperature: 0,
+        json: true
       });
 
-      if (!response.ok) return this.fallback.parse(query);
-
-      const data: unknown = await response.json();
-      if (!isRecord(data) || !Array.isArray(data.candidates)) throw new AppError(502, 'Gemini returned an invalid response.');
-      const firstCandidate = data.candidates[0];
-      if (!isRecord(firstCandidate) || !isRecord(firstCandidate.content) || !Array.isArray(firstCandidate.content.parts)) {
-        throw new AppError(502, 'Gemini returned an empty response.');
+      if (!text) {
+        return this.fallback.parse(query);
       }
-      const firstPart = firstCandidate.content.parts[0];
-      if (!isRecord(firstPart) || typeof firstPart.text !== 'string') throw new AppError(502, 'Gemini returned an invalid response.');
 
-      const parsed = vehicleFiltersSchema.safeParse(parseJsonObject(firstPart.text));
+      const parsed = vehicleFiltersSchema.safeParse(parseJsonObject(text));
       if (!parsed.success) throw new AppError(502, 'Gemini returned unsupported vehicle filters.');
       return parsed.data;
     } catch (error: unknown) {
