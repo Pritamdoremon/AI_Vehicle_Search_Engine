@@ -115,13 +115,16 @@ npx tsx backend/scripts/migratePhotosAndSavedSearches.ts
 
 | Variable | Description |
 | --- | --- |
-| `PORT` | API port (default `5000`) |
+| `PORT` | API port locally (default `5000`). On Render, Render sets this. |
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | PostgreSQL |
 | `DB_SSL` | `true` for cloud Postgres (e.g. Supabase) |
 | `DATABASE_URL` | Optional connection-string fallback |
 | `GEMINI_API_KEY` | Gemini key (optional; local parser used if missing) |
 | `GEMINI_MODEL` | Default `gemini-3.6-flash` |
 | `JWT_SECRET` | **Required** for auth, favourites, history, advisor history |
+| `FRONTEND_ORIGIN` | Frontend URL for CORS (local `http://localhost:3000` or your Render Static Site URL) |
+| `SERVE_FRONTEND` | `true` only for single-process mode; keep `false` for split Render deploy |
+| `VITE_API_URL` | Frontend only: backend URL on Render (leave empty locally) |
 
 ## Run locally
 
@@ -145,14 +148,47 @@ npm start
 
 Vite proxies `/api` to port `5000`.
 
-### Production (one process)
+### Deploy on Render (separate frontend + backend)
+
+Render does **not** expose custom public ports like 3000/5000. Each service gets its **own URL** on HTTPS (port 443). That is the “different port / different host” split.
+
+#### 1) Backend — Web Service
+
+- **Root Directory:** leave empty (repo root)
+- **Build Command:** `npm install && npm run build`
+- **Start Command:** `npm start`
+- **Env vars:** `DB_*`, `DB_SSL=true`, `JWT_SECRET`, `GEMINI_API_KEY`,  
+  `FRONTEND_ORIGIN=https://YOUR-FRONTEND.onrender.com`,  
+  `SERVE_FRONTEND=false`
+
+Your API will be like: `https://your-backend.onrender.com`
+
+#### 2) Frontend — Static Site
+
+- **Root Directory:** `frontend`
+- **Build Command:** `npm install && npm run build`
+- **Publish Directory:** `dist`
+- **Env var (Build):** `VITE_API_URL=https://your-backend.onrender.com`  
+  (no trailing slash)
+
+Your UI will be like: `https://your-frontend.onrender.com`
+
+#### Local ports (dev only)
+
+| App | Port |
+| --- | --- |
+| Frontend | 3000 |
+| Backend | 5000 |
+
+### Optional: one-process mode
 
 ```bash
-npm run build
+# .env → SERVE_FRONTEND=true
+npm run build:all
 npm start
 ```
 
-Express serves `frontend/dist` and the API on `http://localhost:5000`.
+Express then serves `frontend/dist` and the API together.
 
 ## Main APIs
 

@@ -215,6 +215,10 @@ function getStoredUser() {
   }
 }
 
+// Local: empty → Vite proxies /api to localhost:5000
+// Render: set VITE_API_URL to your backend URL (e.g. https://my-api.onrender.com)
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+
 async function apiFetch(url, options = {}) {
   const token = getToken();
   const headers = new Headers(options.headers || {});
@@ -227,7 +231,7 @@ async function apiFetch(url, options = {}) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(url, { ...options, headers });
+  const response = await fetch(`${API_BASE}${url}`, { ...options, headers });
 
   let data = {};
   const contentType = response.headers.get('content-type') || '';
