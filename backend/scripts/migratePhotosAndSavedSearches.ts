@@ -1,6 +1,34 @@
 import 'dotenv/config';
 import { pool } from '../src/db/pool';
 
+// Many different public car photos so each vehicle is not identical
+const CAR_PHOTOS = [
+  'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800&q=80',
+  'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80',
+  'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&q=80',
+  'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80',
+  'https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=800&q=80',
+  'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800&q=80',
+  'https://images.unsplash.com/photo-1489824904134-891ab64532f1?w=800&q=80',
+  'https://images.unsplash.com/photo-1502877338535-766e1452684a?w=800&q=80',
+  'https://images.unsplash.com/photo-1542362567-b07e5438994b?w=800&q=80',
+  'https://images.unsplash.com/photo-1553440569-bcc63803a83d?w=800&q=80',
+  'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=800&q=80',
+  'https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&q=80',
+  'https://images.unsplash.com/photo-1616422285623-13ff0162193b?w=800&q=80',
+  'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=800&q=80',
+  'https://images.unsplash.com/photo-1583121274602-3e282f39ba1f?w=800&q=80',
+  'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&q=80',
+  'https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800&q=80',
+  'https://images.unsplash.com/photo-1525609004556-c46c7d6cf023?w=800&q=80',
+  'https://images.unsplash.com/photo-1511919884224-df77d936dfad?w=800&q=80',
+  'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=800&q=80',
+  'https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=800&q=80',
+  'https://images.unsplash.com/photo-1609521263047-f8f205293f24?w=800&q=80',
+  'https://images.unsplash.com/photo-1619767886558-efdc259cde1a?w=800&q=80',
+  'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&q=80'
+];
+
 async function main(): Promise<void> {
   await pool.query(`
     ALTER TABLE vehicles
@@ -22,22 +50,15 @@ async function main(): Promise<void> {
     ON saved_searches (user_id)
   `);
 
-  // Optional demo photos by body type (safe public placeholders)
-  await pool.query(`
-    UPDATE vehicles
-    SET image_url = CASE body_type
-      WHEN 'suv' THEN 'https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=800&q=80'
-      WHEN 'sedan' THEN 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&q=80'
-      WHEN 'hatchback' THEN 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80'
-      WHEN 'muv' THEN 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800&q=80'
-      WHEN 'coupe' THEN 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800&q=80'
-      WHEN 'convertible' THEN 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80'
-      ELSE image_url
-    END
-    WHERE image_url IS NULL
-  `);
+  // Assign a different photo per vehicle id (always overwrite demo URLs)
+  const result = await pool.query<{ id: number }>('SELECT id FROM vehicles ORDER BY id');
 
-  console.log('Migration complete: image_url + saved_searches');
+  for (const row of result.rows) {
+    const photo = CAR_PHOTOS[(row.id - 1) % CAR_PHOTOS.length];
+    await pool.query('UPDATE vehicles SET image_url = $1 WHERE id = $2', [photo, row.id]);
+  }
+
+  console.log(`Assigned unique-ish photos to ${result.rows.length} vehicles`);
   await pool.end();
 }
 

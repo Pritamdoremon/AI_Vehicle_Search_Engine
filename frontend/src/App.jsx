@@ -1295,7 +1295,7 @@ function App() {
                                   alt={`${vehicle.make} ${vehicle.model}`}
                                   className="mb-3 h-24 w-full rounded-xl object-cover"
                                   onError={(event) => {
-                                    event.currentTarget.src = getPlaceholderImage(vehicle.bodyType);
+                                    event.currentTarget.src = getPlaceholderImage(vehicle.bodyType, vehicle.id);
                                   }}
                                 />
                                 <p className="text-xs font-bold uppercase tracking-[0.15em] text-coral">
@@ -1751,7 +1751,7 @@ function App() {
                     alt={`${detailVehicle.make} ${detailVehicle.model}`}
                     className="h-48 w-full object-cover"
                     onError={(event) => {
-                      event.currentTarget.src = getPlaceholderImage(detailVehicle.bodyType);
+                      event.currentTarget.src = getPlaceholderImage(detailVehicle.bodyType, detailVehicle.id);
                     }}
                   />
                 </div>

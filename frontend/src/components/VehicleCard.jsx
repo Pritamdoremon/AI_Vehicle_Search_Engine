@@ -41,14 +41,32 @@ function getPriceInsightText(vehicle) {
   return `${formatPriceDelta(delta)} above similar vehicles`;
 }
 
-// Simple body-type placeholder when imageUrl is missing.
-function getPlaceholderImage(bodyType) {
-  const label = encodeURIComponent((bodyType || 'car').toUpperCase());
-  return `https://placehold.co/800x450/1f3d34/b9e4d0?text=${label}`;
+// Fallback image when DB has no imageUrl — varies by vehicle id so cards look different
+function getPlaceholderImage(bodyType, vehicleId) {
+  const photos = [
+    'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=800&q=80',
+    'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80',
+    'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=800&q=80',
+    'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80',
+    'https://images.unsplash.com/photo-1519641471654-76ce0107ad1b?w=800&q=80',
+    'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800&q=80',
+    'https://images.unsplash.com/photo-1489824904134-891ab64532f1?w=800&q=80',
+    'https://images.unsplash.com/photo-1502877338535-766e1452684a?w=800&q=80',
+    'https://images.unsplash.com/photo-1542362567-b07e5438994b?w=800&q=80',
+    'https://images.unsplash.com/photo-1553440569-bcc63803a83d?w=800&q=80',
+    'https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800&q=80',
+    'https://images.unsplash.com/photo-1525609004556-c46c7d6cf023?w=800&q=80'
+  ];
+
+  const index = Math.abs(Number(vehicleId) || 0) % photos.length;
+  return photos[index];
 }
 
 function getVehicleImage(vehicle) {
-  return vehicle.imageUrl || vehicle.image_url || getPlaceholderImage(vehicle.bodyType);
+  if (vehicle.imageUrl || vehicle.image_url) {
+    return vehicle.imageUrl || vehicle.image_url;
+  }
+  return getPlaceholderImage(vehicle.bodyType, vehicle.id);
 }
 
 // Build "Why this car" reasons from active search filters + this vehicle.
@@ -176,7 +194,7 @@ function VehicleCard({
             className="h-40 w-full object-cover"
             loading="lazy"
             onError={(event) => {
-              event.currentTarget.src = getPlaceholderImage(vehicle.bodyType);
+              event.currentTarget.src = getPlaceholderImage(vehicle.bodyType, vehicle.id);
             }}
           />
         </div>

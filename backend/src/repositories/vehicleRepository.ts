@@ -62,8 +62,16 @@ function buildWhereClause(filters: VehicleFilters): { clause: string; values: un
     conditions.push(`${column} ${operator} $${values.length}`);
   };
 
-  if (filters.make !== undefined) addCondition('make', '=', filters.make);
-  if (filters.model !== undefined) addCondition('model', '=', filters.model);
+  // Partial, case-insensitive match so "Alto" finds "Alto K10"
+  if (filters.make !== undefined) {
+    values.push(`%${filters.make}%`);
+    conditions.push(`(make ILIKE $${values.length} OR model ILIKE $${values.length})`);
+  }
+
+  if (filters.model !== undefined) {
+    values.push(`%${filters.model}%`);
+    conditions.push(`(make ILIKE $${values.length} OR model ILIKE $${values.length})`);
+  }
   if (filters.bodyType !== undefined) addCondition('body_type', '=', filters.bodyType);
   if (filters.fuelType !== undefined) addCondition('fuel_type', '=', filters.fuelType);
   if (filters.transmission !== undefined) addCondition('transmission', '=', filters.transmission);

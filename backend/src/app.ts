@@ -14,10 +14,26 @@ export function createApp(repository = new VehicleRepository(pool), parser: Filt
 
   app.use(express.json());
 
-  // Allow a separate frontend (e.g. Render Static Site on another URL)
-  const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
+  // Separate frontend URL(s), comma-separated. Example:
+  // FRONTEND_ORIGIN=https://my-ui.onrender.com,http://localhost:3000
+  const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:3000')
+    .split(',')
+    .map((value) => value.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+
   app.use((request, response, next) => {
-    response.setHeader('Access-Control-Allow-Origin', frontendOrigin);
+    const requestOrigin = request.headers.origin;
+
+    if (requestOrigin && allowedOrigins.includes(requestOrigin.replace(/\/$/, ''))) {
+      response.setHeader('Access-Control-Allow-Origin', requestOrigin);
+    } else if (allowedOrigins.includes('*')) {
+      response.setHeader('Access-Control-Allow-Origin', '*');
+    } else if (allowedOrigins.length === 1) {
+      // Keep previous behavior for a single configured origin
+      response.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
+    }
+
+    response.setHeader('Vary', 'Origin');
     response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
     response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
